@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "manim-studio"
+version = "0.1.0"
+description = "Thin integration layer for ManimCE educational video production"
+license = "MIT"
+requires-python = ">=3.9"
+dependencies = [
+    "manim>=0.18",
+    "manim-voiceover[gtts]",
+    "numpy",
+]
+
+[project.optional-dependencies]
+elevenlabs = ["manim-voiceover[elevenlabs]"]
+azure = ["manim-voiceover[azure]"]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["manim_studio*"]
