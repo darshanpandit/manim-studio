@@ -193,3 +193,6 @@ manim -ql --format png scene.py SceneName --disable_caching
 6. **Use `data_scaler()` for trajectory data** — don't manually compute center/scale
 7. **Don't add setup boilerplate** — no `set_speech_service()`, no `camera.background_color`, no final `FadeOut`
 8. **Use `--disable_caching` flag** when rendering scenes with voiceover
+9. **Data integrity** — Use real data for flagship demos when available. Use curated synthetic only for edge-case/failure-mode illustrations. Always disclose data source in narration.
+10. **Theory-observation honesty** — Never silently hide theory-observation mismatches. When visualization doesn't fully support a theoretical claim, add: (a) verbal acknowledgment in voiceover, (b) subtle on-screen annotation via `make_observation_note()`. Present theory correctly, show actual results, explain the gap.
+11. **Data provenance** — Document data source in scene docstrings: `Data: real-world (dataset, ID)`, `Data: curated synthetic (target behavior, seed=N)`, or `Data: synthetic (seed=N)`.
