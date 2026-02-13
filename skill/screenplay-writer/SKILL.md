@@ -103,13 +103,71 @@ Freeform key-value block describing what data the scene needs. Project-specific 
 
 A narrative segment. Each beat pairs voiceover with visuals. 3-8 beats per scene.
 
+### Voices Block (optional)
+
+For multi-voice scenes, declare voices in the header:
+
+```
+VOICES:
+  NARRATOR: Azure en-US-JennyNeural, style=chat
+  SKEPTIC: Azure en-US-TonyNeural, style=friendly
+```
+
+Format: `NAME: Azure VOICE_ID, style=DEFAULT_STYLE`
+
+If no `VOICES:` block, the scene uses a single default voice (project-specific, check `CLAUDE.md`).
+
+**Available Azure styles** (not all voices support all styles):
+
+| Style | Use for |
+|-------|---------|
+| `chat` | Warm, conversational narration |
+| `friendly` | Approachable, natural |
+| `newscast` | Authoritative, broadcast |
+| `narration-professional` | Polished, documentary |
+| `cheerful` | Upbeat, positive |
+| `excited` | High energy moments |
+| `whispering` | Intimate asides |
+| `hopeful` | Optimistic conclusions |
+| `sad` | Somber, reflective |
+| `angry` | Intense, urgent |
+| `unfriendly` | Cold, detached |
+| `shouting` | Loud, emphatic |
+| `terrified` | Anxious, tense |
+| `conversation` | Natural dialogue (KaiNeural, LunaNeural) |
+
 ### Voiceover
 
+**Single-voice** (no `VOICES:` block):
 ```
 > Narrator text goes in blockquotes.
 > Can span multiple lines.
 > This becomes the text-to-speech voiceover.
 ```
+
+**Multi-voice** (with `VOICES:` block):
+```
+> [NARRATOR] Default style narration.
+> [SKEPTIC] Skeptic's line in default style.
+> [NARRATOR, style=whispering] A quiet aside.
+> [SKEPTIC, rate=+15%] Spoken faster than usual.
+```
+
+Each `[TAG]` switch becomes a separate voiceover call. Tag format:
+
+```
+[VOICE_NAME]                           — use default style
+[VOICE_NAME, style=STYLE]              — override style for this line
+[VOICE_NAME, rate=+15%]                — speed up
+[VOICE_NAME, pitch=-5Hz]               — lower pitch
+[VOICE_NAME, volume=+20%]              — louder
+[VOICE_NAME, style=excited, rate=-10%] — combine overrides
+```
+
+**Prosody parameters:**
+- `rate`: speaking speed. Values: `+20%`, `-10%`, `slow`, `fast`, `x-fast`
+- `pitch`: voice pitch. Values: `+10Hz`, `-5Hz`, `high`, `low`
+- `volume`: loudness. Values: `+20%`, `-10%`, `soft`, `loud`
 
 Every beat must have at least one voiceover block. Write conversationally — this is spoken aloud.
 
@@ -182,7 +240,7 @@ TEXT: "Key insight" (bottom, $COLOR_HIGHLIGHT)
 
 Available constants depend on the project — check `CLAUDE.md` or project style guide.
 
-## Complete Example
+## Complete Example (single voice)
 
 ```
 PART 1: Introduction
@@ -230,6 +288,47 @@ TEXT: "Yes." (replace previous, $COLOR_RESULT)
 PAUSE: long
 
 > Over the next few videos, I'll show you exactly how.
+
+FADEOUT: all
+```
+
+## Complete Example (multi-voice)
+
+```
+PART 1: Introduction
+SCENE 01: Hook — "Where is it?"
+
+VOICES:
+  NARRATOR: Azure en-US-JennyNeural, style=chat
+  SKEPTIC: Azure en-US-TonyNeural, style=friendly
+
+DATA:
+  source: real_dataset/trajectory #42
+  noise_std: 0.6
+
+= BEAT 1: The mystery =
+
+SHOW: noisy measurement dots appearing in batches of 8
+
+> [NARRATOR] These are real sensor readings. Every single
+> one of them is wrong.
+
+> [SKEPTIC] How wrong?
+
+> [NARRATOR] Wrong enough that you'd never guess the
+> true path from looking at them.
+
+= BEAT 2: The reveal =
+
+SHOW: filtered estimate path ($COLOR_RESULT)
+
+> [SKEPTIC] So you average them.
+
+> [NARRATOR] No. You do something much cleverer.
+
+> [NARRATOR, style=whispering] And it's only four equations.
+
+PAUSE: long
 
 FADEOUT: all
 ```

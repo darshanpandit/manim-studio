@@ -18,7 +18,7 @@ Read a `.screenplay` file and generate a complete, frame-safe ManimCE scene `.py
 
 ## Scene File Structure
 
-Every generated scene follows this skeleton (adapt imports and base classes per project conventions in `CLAUDE.md`):
+### Single-voice scene (no `VOICES:` block)
 
 ```python
 """[Scene description from screenplay header]"""
@@ -26,10 +26,11 @@ Every generated scene follows this skeleton (adapt imports and base classes per 
 from __future__ import annotations
 
 from manim import *
+from manim_voiceover import VoiceoverScene
+from manim_voiceover.services.gtts import GTTSService
 import numpy as np
 import sys, os
 
-# Project-specific path setup (check CLAUDE.md for pattern)
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Project-specific imports (style, mobjects, data — check CLAUDE.md)
@@ -49,9 +50,50 @@ class SceneName(VoiceoverScene, MovingCameraScene):
         with self.voiceover(text="...") as tracker:
             # [visual directives]
 
-        # ── Beat 2: [description] ─────────────────────────
-        with self.voiceover(text="...") as tracker:
+        # ── Cleanup ───────────────────────────────────────
+        self.play(*[FadeOut(mob) for mob in self.mobjects], run_time=...)
+```
+
+### Multi-voice scene (with `VOICES:` block)
+
+```python
+"""[Scene description from screenplay header]"""
+
+from __future__ import annotations
+
+from manim import *
+from manim_voiceover import VoiceoverScene
+from manim_voiceover.services.azure import AzureService
+import numpy as np
+import sys, os
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+# Project-specific imports
+
+
+class SceneName(VoiceoverScene, MovingCameraScene):
+    """Docstring from screenplay SCENE header."""
+
+    def construct(self):
+        # ── Voice setup ───────────────────────────────────
+        # One AzureService per voice, using default style from VOICES: block
+        narrator = AzureService(voice="en-US-JennyNeural", style="chat")
+        skeptic = AzureService(voice="en-US-TonyNeural", style="friendly")
+        self.set_speech_service(narrator)
+        self.camera.background_color = BG_COLOR
+
+        # ── Data setup ────────────────────────────────────
+        # [from DATA: block]
+
+        # ── Beat 1: [description] ─────────────────────────
+        self.set_speech_service(narrator)
+        with self.voiceover(text="Narrator speaks...") as tracker:
             # [visual directives]
+
+        self.set_speech_service(skeptic)
+        with self.voiceover(text="Skeptic responds.") as tracker:
+            self.wait(PAUSE_SHORT)
 
         # ── Cleanup ───────────────────────────────────────
         self.play(*[FadeOut(mob) for mob in self.mobjects], run_time=...)
@@ -59,9 +101,10 @@ class SceneName(VoiceoverScene, MovingCameraScene):
 
 ## DSL-to-Code Mapping
 
+### Visual and timing directives
+
 | Screenplay | Python |
 |------------|--------|
-| `> voiceover text` | `with self.voiceover(text="...") as tracker:` |
 | `TITLE: "X" (top)` | `Text("X", ..., font_size=TITLE_SIZE).to_edge(UP, buff=0.3)` |
 | `TEXT: "X" (bottom)` | `Text("X", ...).to_edge(DOWN, buff=0.5)` |
 | `TEXT: "X" (position, $COLOR)` | `Text("X", color=COLOR, ...).to_edge(...)` |
@@ -74,6 +117,59 @@ class SceneName(VoiceoverScene, MovingCameraScene):
 | `NOTE: "text"` | Project-specific citation mobject (check CLAUDE.md) |
 | `FADEOUT: all` | `self.play(*[FadeOut(mob) for mob in self.mobjects])` |
 | `$COLOR_NAME` | Direct constant reference from project style |
+
+### Voiceover and voice directives
+
+| Screenplay | Python |
+|------------|--------|
+| `> text` (no VOICES block) | `with self.voiceover(text="...") as tracker:` |
+| `> [NAME] text` | `self.set_speech_service(name); with self.voiceover(text="...") as tracker:` |
+| `> [NAME, style=X] text` | Create new `AzureService(voice=..., style="X")`, set it, then voiceover |
+| `> [NAME, rate=+15%] text` | `with self.voiceover(text="...", prosody={"rate": "+15%"}) as tracker:` |
+| `> [NAME, pitch=-5Hz] text` | `with self.voiceover(text="...", prosody={"pitch": "-5Hz"}) as tracker:` |
+| `> [NAME, volume=+20%] text` | `with self.voiceover(text="...", prosody={"volume": "+20%"}) as tracker:` |
+| `> [NAME, style=X, rate=Y]` | New AzureService + prosody combined |
+
+### Voice tag rules
+
+1. **Each `[TAG]` switch = new voiceover block.** Consecutive lines with the same tag are concatenated into one block.
+2. **Style overrides create new AzureService instances.** Cache them to avoid recreating:
+
+```python
+# At top of construct():
+narrator = AzureService(voice="en-US-JennyNeural", style="chat")
+narrator_whisper = AzureService(voice="en-US-JennyNeural", style="whispering")
+skeptic = AzureService(voice="en-US-TonyNeural", style="friendly")
+skeptic_excited = AzureService(voice="en-US-TonyNeural", style="excited")
+```
+
+3. **Prosody is per-voiceover, not per-service.** Pass it to `self.voiceover()`:
+
+```python
+self.set_speech_service(narrator)
+with self.voiceover(
+    text="This part is spoken slowly...",
+    prosody={"rate": "-15%", "pitch": "-3Hz"},
+) as tracker:
+    self.wait(PAUSE_MEDIUM)
+```
+
+4. **Distribute animations across voice blocks.** When a beat has multiple voice tags, the first voice block gets the main animations. Subsequent interjections typically just `self.wait()`:
+
+```python
+# Beat with narrator + skeptic exchange
+self.set_speech_service(narrator)
+with self.voiceover(text="Here's what happens...") as tracker:
+    self.play(FadeIn(diagram), run_time=NORMAL_ANIM)
+
+self.set_speech_service(skeptic)
+with self.voiceover(text="That seems too simple.") as tracker:
+    self.wait(PAUSE_SHORT)  # visuals hold during skeptic's line
+
+self.set_speech_service(narrator)
+with self.voiceover(text="It is. That's the beauty of it.") as tracker:
+    self.wait(PAUSE_MEDIUM)
+```
 
 ---
 
@@ -200,6 +296,8 @@ title.set_z_index(10)
 
 Every beat's animations go INSIDE the voiceover context manager. This synchronizes speech with visuals.
 
+### Single-voice
+
 ```python
 # CORRECT — animations inside voiceover
 with self.voiceover(text="Here's what happens...") as tracker:
@@ -213,10 +311,81 @@ with self.voiceover(text="Here's what happens...") as tracker:
     pass
 ```
 
+### Multi-voice
+
+Each `[TAG]` switch creates a separate `set_speech_service()` + `voiceover()` block. Consecutive lines with the same tag merge into one block.
+
+```python
+# Screenplay:
+#   > [NARRATOR] The ellipse grows during prediction.
+#   > [SKEPTIC] Why does it grow?
+#   > [NARRATOR] Because the model isn't perfect.
+
+# Generated code:
+self.set_speech_service(narrator)
+with self.voiceover(text="The ellipse grows during prediction.") as tracker:
+    self.play(ellipse.animate.scale(1.3), run_time=NORMAL_ANIM)
+
+self.set_speech_service(skeptic)
+with self.voiceover(text="Why does it grow?") as tracker:
+    self.wait(PAUSE_SHORT)
+
+self.set_speech_service(narrator)
+with self.voiceover(text="Because the model isn't perfect.") as tracker:
+    self.wait(PAUSE_MEDIUM)
+```
+
+### Style overrides mid-scene
+
+```python
+# Screenplay:
+#   > [NARRATOR, style=whispering] And it's only four equations.
+
+# Generated code — pre-create the style variant at top of construct():
+narrator_whisper = AzureService(voice="en-US-JennyNeural", style="whispering")
+
+# Then at the point of use:
+self.set_speech_service(narrator_whisper)
+with self.voiceover(text="And it's only four equations.") as tracker:
+    self.wait(PAUSE_MEDIUM)
+```
+
+### Prosody overrides
+
+```python
+# Screenplay:
+#   > [SKEPTIC, rate=+15%] That seems obvious.
+
+# Generated code — same service, prosody passed per-call:
+self.set_speech_service(skeptic)
+with self.voiceover(
+    text="That seems obvious.",
+    prosody={"rate": "+15%"},
+) as tracker:
+    self.wait(PAUSE_SHORT)
+```
+
+### Combined style + prosody
+
+```python
+# Screenplay:
+#   > [NARRATOR, style=excited, rate=-10%, pitch=+5Hz] This changes everything.
+
+# Generated code:
+narrator_excited = AzureService(voice="en-US-JennyNeural", style="excited")
+self.set_speech_service(narrator_excited)
+with self.voiceover(
+    text="This changes everything.",
+    prosody={"rate": "-10%", "pitch": "+5Hz"},
+) as tracker:
+    self.play(Flash(result, color=COLOR_HIGHLIGHT), run_time=0.5)
+```
+
 **Voiceover text rules:**
-- Concatenate all `>` lines from a beat into one string
-- Strip the `>` prefix
+- Concatenate consecutive `>` lines with the **same tag** into one string
+- Strip the `>` prefix and `[TAG]` prefix
 - Join with spaces (not newlines)
+- A tag change = new voiceover block
 - No special characters that would break JSON serialization
 
 ---
